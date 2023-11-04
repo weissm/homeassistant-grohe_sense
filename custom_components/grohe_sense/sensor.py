@@ -116,7 +116,8 @@ class GroheSenseGuardReader:
             # So, some ugly code to remove the colon for now...
             if s.rfind(':') > s.find('+'):
                 s = s[:s.rfind(':')] + s[s.rfind(':')+1:]
-            return datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%f%z')
+            s += ' +0000'
+            return datetime.strptime(s, '%Y-%m-%d %z')
 
         poll_from=self._poll_from.strftime('%Y-%m-%d')
         measurements_response = await self._auth_session.get(BASE_URL + f'locations/{self._locationId}/rooms/{self._roomId}/appliances/{self._applianceId}/data/aggregated?from={poll_from}')
@@ -125,14 +126,14 @@ class GroheSenseGuardReader:
             withdrawals = measurements_response['data']['withdrawals']
             _LOGGER.debug('Received %d withdrawals in response', len(withdrawals))
             for w in withdrawals:
-                w['starttime'] = parse_time(w['starttime'])
-            withdrawals = [ w for w in withdrawals if w['starttime'] > self._poll_from]
-            withdrawals.sort(key = lambda x: x['starttime'])
+                w['date'] = parse_time(w['date'])
+            withdrawals = [ w for w in withdrawals if w['date'] > self._poll_from]
+            withdrawals.sort(key = lambda x: x['date'])
 
             _LOGGER.debug('Got %d new withdrawals totaling %f volume', len(withdrawals), sum((w['waterconsumption'] for w in withdrawals)))
             self._withdrawals += withdrawals
             if len(self._withdrawals) > 0:
-                self._poll_from = max(self._poll_from, self._withdrawals[-1]['starttime'])
+                self._poll_from = max(self._poll_from, self._withdrawals[-1]['date'])
         elif self._type != GROHE_SENSE_TYPE:
             _LOGGER.info('Data response for appliance %s did not contain any withdrawals data', self._applianceId)
 
@@ -157,7 +158,7 @@ class GroheSenseGuardReader:
     def consumption(self, since):
         # XXX: As self._withdrawals is sorted, we could speed this up by a binary search,
         #      but most likely data sets are small enough that a linear scan is fine.
-        return sum((w['waterconsumption'] for w in self._withdrawals if w['starttime'] >= since))
+        return sum((w['waterconsumption'] for w in self._withdrawals if w['date'] >= since))
 
     def measurement(self, key):
         if key in self._measurements:
