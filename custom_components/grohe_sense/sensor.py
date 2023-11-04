@@ -21,7 +21,7 @@ SENSOR_TYPES = {
         'temperature': SensorType(TEMP_CELSIUS, DEVICE_CLASS_TEMPERATURE, lambda x : x),
         'humidity': SensorType(PERCENTAGE, DEVICE_CLASS_HUMIDITY, lambda x : x),
         'flowrate': SensorType(VOLUME_FLOW_RATE_CUBIC_METERS_PER_HOUR, None, lambda x : x * 3.6),
-        'pressure': SensorType(PRESSURE_BAR, DEVICE_CLASS_PRESSURE, lambda x : x * 1000),
+        'pressure': SensorType(PRESSURE_BAR, DEVICE_CLASS_PRESSURE, lambda x : x ),
         'temperature_guard': SensorType(TEMP_CELSIUS, DEVICE_CLASS_TEMPERATURE, lambda x : x),
         }
 
@@ -145,7 +145,7 @@ class GroheSenseGuardReader:
                     _LOGGER.debug('key: %s', key)
                     if key in measurements[-1]:
                         self._measurements[key] = measurements[-1][key]
-                self._poll_from = datetime.strptime(measurements[-1]['date'], '%Y-%m-%d')
+                self._poll_from = parse_time(measurements[-1]['date'])
         else:
             _LOGGER.info('Data response for appliance %s did not contain any measurements data', self._applianceId)
 
