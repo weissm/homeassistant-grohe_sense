@@ -127,7 +127,7 @@ class GroheSenseGuardReader:
             _LOGGER.debug('Received %d withdrawals in response', len(withdrawals))
             for w in withdrawals:
                 w['date'] = parse_time(w['date'])
-            withdrawals = [ w for w in withdrawals if w['date'] > self._poll_from]
+            withdrawals = [ w for w in withdrawals if w['date'] >= self._poll_from]
             withdrawals.sort(key = lambda x: x['date'])
 
             _LOGGER.debug('Got %d new withdrawals totaling %f volume', len(withdrawals), sum((w['waterconsumption'] for w in withdrawals)))
