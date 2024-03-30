@@ -48,7 +48,19 @@ Graphing water consumption is also nice. Note that the data returned by Grohe's 
 #### Option 2: Manual
 - Clone this repository or download the source code as a zip file and add/merge the `custom_components/` folder with its contents in your configuration directory.
 
+
 ### Step 2: Get your Grohe authentication token
+
+#### Option 1: Via your login credentenials
+- Configure the integration
+```
+grohe_sense:
+username: "YOUR_LOGIN_NAME"
+password: "YOUR_PASSWORD"
+
+```
+
+#### Option 2: Via token (needs regular regeneration)
 - Ensure everything is set up and working in Grohe's Ondus app
 - Go to https://idp2-apigw.cloud.grohe.com/v3/iot/oidc/login
 - Bring up developer tools
@@ -56,7 +68,6 @@ Graphing water consumption is also nice. Note that the data returned by Grohe's 
 - You should see this failed redirect in your developer tools. Copy out the full URL and replace `ondus` with `https` and visit that URL (will likely only work once, and will expire, so don't be too slow).
 - This gives you a json response. Save it and extract refresh_token from it (manually, or `jq .refresh_token < file.json`)
 
-### Step 3: Configure the integration
 Put the following in your home assistant config (N.B., format has changed, this component is no longer configured as a sensor platform)
 ```
 grohe_sense:
