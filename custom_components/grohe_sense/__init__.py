@@ -9,6 +9,7 @@ import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 
 from homeassistant.helpers import aiohttp_client
+from homeassistant.helpers.discovery import async_load_platform
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,8 +75,8 @@ async def async_setup(hass, config):
 
     await initialize_shared_objects(hass, config.get(DOMAIN).get(CONF_USERNAME), config.get(DOMAIN).get(CONF_PASSWORD))
 
-    await hass.helpers.discovery.async_load_platform('sensor', DOMAIN, {}, config)
-    await hass.helpers.discovery.async_load_platform('switch', DOMAIN, {}, config)
+    await async_load_platform(hass, 'sensor', DOMAIN, {}, config)
+    await async_load_platform(hass, 'switch', DOMAIN, {}, config)
     return True
 
 async def initialize_shared_objects(hass, username, password):
