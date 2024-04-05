@@ -22,7 +22,7 @@ SENSOR_TYPES = {
         'temperature': SensorType(UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE , lambda x : x),
         'humidity': SensorType(PERCENTAGE, SensorDeviceClass.HUMIDITY , lambda x : x),
         'flowrate': SensorType(UnitOfVolume.LITERS , None, lambda x : x * 3.6),
-        'pressure': SensorType(UnitOfPressure.MBAR , SensorDeviceClass.PRESSURE  , lambda x : x * 1000),
+        'pressure': SensorType(UnitOfPressure.BAR , SensorDeviceClass.PRESSURE  , lambda x : x),
         'temperature_guard': SensorType(UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE , lambda x : x),
         }
 
@@ -103,9 +103,9 @@ class GroheSenseGuardReader:
             await self._fetching_data.wait()
             return
 
-        # XXX: Hardcoded 15 minute interval for now. Would be prettier to set this a bit more dynamically
+        # XXX: Hardcoded 5 minute interval for now. Would be prettier to set this a bit more dynamically
         # based on the json response for the sense guard, and probably hardcode something longer for the sense.
-        if datetime.now() - self._data_fetch_completed < timedelta(minutes=15):
+        if datetime.now() - self._data_fetch_completed < timedelta(minutes=5):
             _LOGGER.debug('Skipping fetching new data, time since last fetch was only %s', datetime.now() - self._data_fetch_completed)
             return
 
@@ -115,26 +115,26 @@ class GroheSenseGuardReader:
         def parse_time(s):
             # XXX: Fix for python 3.6 - Grohe emits time zone as "+HH:MM", python 3.6's %z only accepts the format +HHMM
             # So, some ugly code to remove the colon for now...
+            # Added timezone info to new grohe date format
             if s.rfind(':') > s.find('+'):
                 s = s[:s.rfind(':')] + s[s.rfind(':')+1:]
-            return datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%f%z')
-
+            return datetime.strptime(s, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            
         poll_from=self._poll_from.strftime('%Y-%m-%d')
         measurements_response = await self._auth_session.get(BASE_URL + f'locations/{self._locationId}/rooms/{self._roomId}/appliances/{self._applianceId}/data/aggregated?from={poll_from}')
         _LOGGER.debug('Data read: %s', measurements_response['data'])
         if 'withdrawals' in measurements_response['data']:
             withdrawals = measurements_response['data']['withdrawals']
-            _LOGGER.debug('Received %d withdrawals in response, but cannot be changed', len(withdrawals))
-            # XXX: removed starttime as this is not provided anymore via the Grohe API
-            # for w in withdrawals:
-            #     w['starttime'] = parse_time(w['starttime'])
-            # withdrawals = [ w for w in withdrawals if w['starttime'] > self._poll_from]
-            # withdrawals.sort(key = lambda x: x['starttime'])
+            _LOGGER.debug('Received %d withdrawals in response', len(withdrawals))
+            for w in withdrawals:
+                w['date'] = parse_time(w['date'])
+            withdrawals = [ w for w in withdrawals if w['date'] > self._poll_from]
+            withdrawals.sort(key = lambda x: x['date'])
 
-            # _LOGGER.debug('Got %d new withdrawals totaling %f volume', len(withdrawals), sum((w['waterconsumption'] for w in withdrawals)))
-            # self._withdrawals += withdrawals
-            # if len(self._withdrawals) > 0:
-            #     self._poll_from = max(self._poll_from, self._withdrawals[-1]['starttime'])
+            _LOGGER.debug('Got %d new withdrawals totaling %f volume', len(withdrawals), sum((w['waterconsumption'] for w in withdrawals)))
+            self._withdrawals += withdrawals
+            if len(self._withdrawals) > 0:
+                self._poll_from = max(self._poll_from, self._withdrawals[-1]['date'])
         elif self._type != GROHE_SENSE_TYPE:
             _LOGGER.info('Data response for appliance %s did not contain any withdrawals data', self._applianceId)
 
@@ -146,7 +146,8 @@ class GroheSenseGuardReader:
                     _LOGGER.debug('key: %s', key)
                     if key in measurements[-1]:
                         self._measurements[key] = measurements[-1][key]
-                self._poll_from = datetime.strptime(measurements[-1]['date'], '%Y-%m-%d')
+                #self._poll_from = datetime.strptime(measurements[-1]['date'], '%Y-%m-%d')
+                self._poll_from = parse_time(measurements[-1]['date'])
         else:
             _LOGGER.info('Data response for appliance %s did not contain any measurements data', self._applianceId)
 
@@ -159,9 +160,7 @@ class GroheSenseGuardReader:
     def consumption(self, since):
         # XXX: As self._withdrawals is sorted, we could speed this up by a binary search,
         #      but most likely data sets are small enough that a linear scan is fine.
-        # XXX: removed starttime as this is not provided anymore via the Grohe API
-        # return sum((w['waterconsumption'] for w in self._withdrawals if w['starttime'] >= since))
-        return sum((w['waterconsumption'] for w in self._withdrawals))
+        return sum((w['waterconsumption'] for w in self._withdrawals if w['date'] >= since))
 
     def measurement(self, key):
         if key in self._measurements:
@@ -211,7 +210,7 @@ class GroheSenseGuardWithdrawalsEntity(Entity):
 
     @property
     def unit_of_measurement(self):
-        return VOLUME_LITERS
+        return UnitOfVolume.LITERS
 
     @property
     def state(self):
